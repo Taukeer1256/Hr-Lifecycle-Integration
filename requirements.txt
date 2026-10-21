@@ -1,0 +1,12 @@
+fastapi==0.115.5
+pydantic==2.10.3
+pydantic-settings==2.6.1
+pydantic[email]
+motor==3.6.0
+pymongo==4.9.2
+httpx==0.28.0
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
+uvicorn[standard]==0.32.1
+python-multipart==0.0.20

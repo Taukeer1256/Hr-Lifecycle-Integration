@@ -1,0 +1,381 @@
+{
+  "info": {
+    "name": "HR Lifecycle Integration Service",
+    "description": "Complete API collection for the HR Lifecycle Integration Service. Import and set the base_url variable to your API endpoint.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "hr-lifecycle-integration-v1"
+  },
+  "variable": [
+    {"key": "base_url", "value": "http://localhost:8000/api/v1"},
+    {"key": "admin_token", "value": ""},
+    {"key": "viewer_token", "value": ""},
+    {"key": "integration_token", "value": ""},
+    {"key": "employee_id", "value": "POSTMAN001"},
+    {"key": "subscription_id", "value": ""},
+    {"key": "outbox_id", "value": ""}
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login as hr_admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const resp = pm.response.json();",
+                  "pm.collectionVariables.set('admin_token', resp.access_token);",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has token', () => pm.expect(resp.access_token).to.be.a('string'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\": \"hr_admin\", \"password\": \"HrAdmin123!\"}"
+            },
+            "url": "{{base_url}}/auth/token"
+          }
+        },
+        {
+          "name": "Login as hr_viewer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const resp = pm.response.json();",
+                  "pm.collectionVariables.set('viewer_token', resp.access_token);",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\": \"hr_viewer\", \"password\": \"HrViewer123!\"}"
+            },
+            "url": "{{base_url}}/auth/token"
+          }
+        },
+        {
+          "name": "Login as integration_admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const resp = pm.response.json();",
+                  "pm.collectionVariables.set('integration_token', resp.access_token);",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\": \"integration_admin\", \"password\": \"IntAdmin123!\"}"
+            },
+            "url": "{{base_url}}/auth/token"
+          }
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{admin_token}}"}],
+            "url": "{{base_url}}/auth/me"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Employees",
+      "item": [
+        {
+          "name": "Create Employee (Joiner)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const d = pm.response.json();",
+                  "pm.test('Status pending', () => pm.expect(d.employment_status).to.eql('pending'));",
+                  "pm.collectionVariables.set('employee_id', d.employee_id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{admin_token}}"},
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "X-Correlation-ID", "value": "postman-joiner-001"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employee_id\": \"POSTMAN001\",\n  \"name\": \"Postman Test Employee\",\n  \"email\": \"postman.test@example.com\",\n  \"department\": \"Engineering\",\n  \"job_title\": \"Software Engineer\",\n  \"location\": \"London\",\n  \"start_date\": \"2024-01-15\"\n}"
+            },
+            "url": "{{base_url}}/employees"
+          }
+        },
+        {
+          "name": "List Employees",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{viewer_token}}"}],
+            "url": {
+              "raw": "{{base_url}}/employees?page=1&page_size=10",
+              "query": [
+                {"key": "page", "value": "1"},
+                {"key": "page_size", "value": "10"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Employee by ID",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{admin_token}}"}],
+            "url": "{{base_url}}/employees/{{employee_id}}"
+          }
+        },
+        {
+          "name": "Activate Employee",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Status active', () => pm.expect(pm.response.json().employment_status).to.eql('active'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Authorization", "value": "Bearer {{admin_token}}"}],
+            "url": "{{base_url}}/employees/{{employee_id}}/activate"
+          }
+        },
+        {
+          "name": "Update Employee (Mover)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Department updated', () => pm.expect(pm.response.json().department).to.eql('Product'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{admin_token}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"department\": \"Product\", \"job_title\": \"Product Manager\", \"location\": \"Berlin\"}"
+            },
+            "url": "{{base_url}}/employees/{{employee_id}}"
+          }
+        },
+        {
+          "name": "Terminate Employee (Leaver)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Status terminated', () => pm.expect(pm.response.json().employment_status).to.eql('terminated'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{admin_token}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"end_date\": \"2024-12-31\"}"
+            },
+            "url": "{{base_url}}/employees/{{employee_id}}/terminate"
+          }
+        },
+        {
+          "name": "403 - Viewer Cannot Create",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": ["pm.test('Status 403', () => pm.response.to.have.status(403));"]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{viewer_token}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {"mode": "raw", "raw": "{\"employee_id\": \"DENIED\", \"name\": \"No\", \"email\": \"no@no.com\", \"department\": \"X\", \"job_title\": \"X\", \"location\": \"X\", \"start_date\": \"2024-01-01\"}"},
+            "url": "{{base_url}}/employees"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Events & Subscriptions",
+      "item": [
+        {
+          "name": "Create Webhook Subscription",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('subscription_id', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{integration_token}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"target_url\": \"http://localhost:9000/webhook/payroll\",\n  \"event_types\": [\"employee.joined\", \"employee.moved\", \"employee.left\"],\n  \"description\": \"Postman test subscription\"\n}"
+            },
+            "url": "{{base_url}}/subscriptions"
+          }
+        },
+        {
+          "name": "List Subscriptions",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{integration_token}}"}],
+            "url": "{{base_url}}/subscriptions"
+          }
+        },
+        {
+          "name": "Update Subscription",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {"key": "Authorization", "value": "Bearer {{integration_token}}"},
+              {"key": "Content-Type", "value": "application/json"}
+            ],
+            "body": {"mode": "raw", "raw": "{\"active\": false}"},
+            "url": "{{base_url}}/subscriptions/{{subscription_id}}"
+          }
+        },
+        {
+          "name": "List Events",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{admin_token}}"}],
+            "url": "{{base_url}}/events"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "List Outbox Events",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{integration_token}}"}],
+            "url": "{{base_url}}/admin/outbox"
+          }
+        },
+        {
+          "name": "List Dead-Lettered Events",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{integration_token}}"}],
+            "url": {
+              "raw": "{{base_url}}/admin/outbox?status=dead_letter",
+              "query": [{"key": "status", "value": "dead_letter"}]
+            }
+          }
+        },
+        {
+          "name": "Retry Dead-Lettered Event",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Authorization", "value": "Bearer {{integration_token}}"}],
+            "url": "{{base_url}}/admin/outbox/{{outbox_id}}/retry"
+          }
+        },
+        {
+          "name": "Retry ALL Dead-Lettered Events",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Authorization", "value": "Bearer {{integration_token}}"}],
+            "url": "{{base_url}}/admin/outbox/retry-all-dead-letters"
+          }
+        },
+        {
+          "name": "Audit Trail",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{admin_token}}"}],
+            "url": {
+              "raw": "{{base_url}}/admin/audit?employee_id={{employee_id}}",
+              "query": [{"key": "employee_id", "value": "{{employee_id}}"}]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {"exec": ["pm.test('Status 200', () => pm.response.to.have.status(200));"]}
+            }
+          ],
+          "request": {"method": "GET", "url": "http://localhost:8000/health"}
+        },
+        {
+          "name": "Readiness Check",
+          "request": {"method": "GET", "url": "http://localhost:8000/ready"}
+        }
+      ]
+    }
+  ]
+}

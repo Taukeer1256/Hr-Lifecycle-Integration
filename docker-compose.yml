@@ -1,0 +1,83 @@
+version: "3.9"
+
+services:
+  # ── MongoDB ────────────────────────────────────────────────────────────────
+  mongo:
+    image: mongo:7.0
+    container_name: hr_mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - hr_network
+
+  # ── Mock Downstream ────────────────────────────────────────────────────────
+  mock_downstream:
+    build:
+      context: .
+      dockerfile: mock_downstream/Dockerfile
+    container_name: hr_mock_downstream
+    ports:
+      - "9000:9000"
+    environment:
+      MOCK_FAILURE_RATE: ${MOCK_FAILURE_RATE:-0.3}
+      WEBHOOK_HMAC_SECRET: ${WEBHOOK_HMAC_SECRET:-changeme-webhook-hmac-secret}
+      MOCK_DOWNSTREAM_PORT: 9000
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hr_network
+
+  # ── HR API ─────────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hr_api
+    ports:
+      - "8000:8000"
+    environment:
+      MONGODB_URI: mongodb://mongo:27017/hrdb
+      MONGODB_DB_NAME: hrdb
+      APP_ENV: development
+      APP_PORT: 8000
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-changeme-generate-a-real-secret-in-production}
+      JWT_ALGORITHM: HS256
+      JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-60}
+      WEBHOOK_HMAC_SECRET: ${WEBHOOK_HMAC_SECRET:-changeme-webhook-hmac-secret}
+      OUTBOX_POLL_INTERVAL_SECONDS: ${OUTBOX_POLL_INTERVAL_SECONDS:-5}
+      OUTBOX_MAX_RETRIES: ${OUTBOX_MAX_RETRIES:-5}
+      OUTBOX_BACKOFF_BASE_SECONDS: ${OUTBOX_BACKOFF_BASE_SECONDS:-2}
+      OUTBOX_BACKOFF_MAX_SECONDS: ${OUTBOX_BACKOFF_MAX_SECONDS:-60}
+      MOCK_DOWNSTREAM_URL: http://mock_downstream:9000
+    depends_on:
+      mongo:
+        condition: service_healthy
+      mock_downstream:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - hr_network
+
+volumes:
+  mongo_data:
+
+networks:
+  hr_network:
+    driver: bridge
